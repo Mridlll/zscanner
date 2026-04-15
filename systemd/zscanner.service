@@ -1,0 +1,18 @@
+[Unit]
+Description=zscanner — cross-sectional z-score scanner for Binance perpetuals
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# User=youruser
+# WorkingDirectory=/home/youruser/zscanner
+# EnvironmentFile=/home/youruser/zscanner/.env
+ExecStart=/usr/bin/python3 -m zscanner
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

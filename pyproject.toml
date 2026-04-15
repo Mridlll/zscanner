@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zscanner"
+version = "0.1.0"
+description = "Cross-sectional z-score scanner for Binance USDT-M perpetuals, posting alerts to Discord."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Mridul Khanna" }]
+dependencies = [
+    "aiohttp>=3.9",
+    "matplotlib>=3.8",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+zscanner = "zscanner.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["zscanner*"]
