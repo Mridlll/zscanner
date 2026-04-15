@@ -40,17 +40,27 @@ async def post(
                 pass
 
 
+def _fmt(v) -> str:
+    if v is None:
+        return "—"
+    return f"{v:+.2f}"
+
+
 def build_embed(title: str, timestamp_iso: str, top_metrics: list[dict]) -> dict:
     fields = []
     for m in top_metrics[:3]:
         sym = m["symbol"]
-        val = (
-            f"composite: {m['composite']:+.2f}\n"
-            f"oi_z: {m['oi_z']:+.2f}\n"
-            f"price_z: {m['price_z']:+.2f}\n"
-            f"funding_z: {m['funding_z']:+.2f}"
+        line1 = (
+            f"composite {_fmt(m['composite'])}  \u2022  "
+            f"OI 30m {_fmt(m.get('oi_z_30m'))} / 1h {_fmt(m.get('oi_z_1h'))} / 4h {_fmt(m.get('oi_z_4h'))}"
         )
-        fields.append({"name": sym, "value": val, "inline": True})
+        line2 = (
+            f"price {_fmt(m.get('price_z'))}  \u2022  "
+            f"vol {_fmt(m.get('volume_z'))}  \u2022  "
+            f"funding {_fmt(m.get('funding_z'))}  \u2022  "
+            f"basis {_fmt(m.get('basis_z'))}"
+        )
+        fields.append({"name": sym, "value": f"{line1}\n{line2}", "inline": False})
     return {
         "title": title,
         "timestamp": timestamp_iso,

@@ -4,13 +4,6 @@ import json
 from pathlib import Path
 
 
-OI_LOOKBACK_MAP = {
-    "1h": ("5m", 12),
-    "2h": ("5m", 24),
-    "4h": ("5m", 48),
-    "8h": ("15m", 32),
-}
-
 INTERVAL_MAP = {
     "5m": 300,
     "15m": 900,
@@ -101,10 +94,6 @@ def run_wizard(config_path: Path, env_path: Path) -> None:
         scan_interval_seconds = INTERVAL_MAP[interval_choice]
         scan_interval_label = interval_choice
 
-    cur_oi = existing.get("oi_lookback", "4h")
-    oi_choice = _prompt_choice("OI lookback window", ["1h", "2h", "4h", "8h"], cur_oi if cur_oi in OI_LOOKBACK_MAP else "4h")
-    oi_period, oi_bars = OI_LOOKBACK_MAP[oi_choice]
-
     cur_universe = existing.get("universe", "top_volume")
     universe = _prompt_choice("Symbol universe", ["all", "top_volume"], cur_universe)
     top_n_universe = existing.get("top_n_universe", 100)
@@ -113,27 +102,34 @@ def run_wizard(config_path: Path, env_path: Path) -> None:
 
     threshold = _prompt_float("Z-score threshold to flag", existing.get("z_threshold", 2.0))
     top_n_chart = _prompt_int("Top N in charts", existing.get("top_n_chart", 15))
+    cooldown_minutes = _prompt_int("Cooldown minutes per symbol", existing.get("cooldown_minutes", 240))
 
-    w = existing.get("weights", {"oi": 0.5, "price": 0.3, "funding": 0.2})
-    w_oi = _prompt_float("Weight: OI", w.get("oi", 0.5))
-    w_price = _prompt_float("Weight: Price", w.get("price", 0.3))
+    w = existing.get("weights", {"oi": 0.4, "price": 0.2, "funding": 0.2, "volume": 0.1, "basis": 0.1})
+    w_oi = _prompt_float("Weight: OI", w.get("oi", 0.4))
+    w_price = _prompt_float("Weight: Price", w.get("price", 0.2))
     w_funding = _prompt_float("Weight: Funding", w.get("funding", 0.2))
-    total = w_oi + w_price + w_funding
+    w_volume = _prompt_float("Weight: Volume", w.get("volume", 0.1))
+    w_basis = _prompt_float("Weight: Basis", w.get("basis", 0.1))
+    total = w_oi + w_price + w_funding + w_volume + w_basis
     if total <= 0:
-        w_oi, w_price, w_funding = 0.5, 0.3, 0.2
+        w_oi, w_price, w_funding, w_volume, w_basis = 0.4, 0.2, 0.2, 0.1, 0.1
         total = 1.0
-    weights = {"oi": w_oi / total, "price": w_price / total, "funding": w_funding / total}
+    weights = {
+        "oi": w_oi / total,
+        "price": w_price / total,
+        "funding": w_funding / total,
+        "volume": w_volume / total,
+        "basis": w_basis / total,
+    }
 
     config = {
         "scan_interval": scan_interval_label,
         "scan_interval_seconds": scan_interval_seconds,
-        "oi_lookback": oi_choice,
-        "oi_period": oi_period,
-        "oi_lookback_bars": oi_bars,
         "universe": universe,
         "top_n_universe": top_n_universe,
         "z_threshold": threshold,
         "top_n_chart": top_n_chart,
+        "cooldown_minutes": cooldown_minutes,
         "weights": weights,
     }
 

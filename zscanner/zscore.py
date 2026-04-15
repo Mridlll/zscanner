@@ -20,49 +20,83 @@ def _normalize_weights(weights: dict) -> dict:
     return {k: v / total for k, v in weights.items()}
 
 
+def _cross_section_z(values_by_symbol: dict[str, float]) -> dict[str, float]:
+    syms = [s for s, v in values_by_symbol.items() if v is not None]
+    vals = [values_by_symbol[s] for s in syms]
+    zs = sample_zscore(vals)
+    return {s: z for s, z in zip(syms, zs)}
+
+
 def build_metrics(
     symbols: list[str],
-    oi_changes: dict[str, float],
+    oi_changes_by_window: dict[str, dict[str, float]],
     price_changes: dict[str, float],
     funding_aprs: dict[str, float],
+    volumes: dict[str, float],
+    basis_pcts: dict[str, float],
     weights: dict,
 ) -> list[dict]:
     w = _normalize_weights({
-        "oi": float(weights.get("oi", 0.5)),
-        "price": float(weights.get("price", 0.3)),
+        "oi": float(weights.get("oi", 0.4)),
+        "price": float(weights.get("price", 0.2)),
         "funding": float(weights.get("funding", 0.2)),
+        "volume": float(weights.get("volume", 0.1)),
+        "basis": float(weights.get("basis", 0.1)),
     })
 
-    valid = [
-        s for s in symbols
-        if s in oi_changes and s in price_changes and s in funding_aprs
-        and oi_changes[s] is not None
-        and price_changes[s] is not None
-        and funding_aprs[s] is not None
-    ]
-    if not valid:
-        return []
+    windows = ["30m", "1h", "4h"]
+    oi_z_by_window: dict[str, dict[str, float]] = {}
+    for win in windows:
+        raw = oi_changes_by_window.get(win, {})
+        oi_z_by_window[win] = _cross_section_z(raw)
 
-    oi_vals = [oi_changes[s] for s in valid]
-    price_vals = [price_changes[s] for s in valid]
-    funding_vals = [funding_aprs[s] for s in valid]
-
-    oi_z = sample_zscore(oi_vals)
-    price_z = sample_zscore(price_vals)
-    funding_z = sample_zscore(funding_vals)
+    price_z_map = _cross_section_z(price_changes)
+    funding_z_map = _cross_section_z(funding_aprs)
+    volume_z_map = _cross_section_z(volumes)
+    basis_z_map = _cross_section_z(basis_pcts)
 
     out = []
-    for i, s in enumerate(valid):
-        composite = (
-            oi_z[i] * w["oi"]
-            + price_z[i] * w["price"]
-            + funding_z[i] * w["funding"]
-        )
+    for s in symbols:
+        oi_zs_present = [oi_z_by_window[win].get(s) for win in windows]
+        oi_zs_present = [z for z in oi_zs_present if z is not None]
+        if not oi_zs_present:
+            continue
+        oi_z_30m = oi_z_by_window["30m"].get(s)
+        oi_z_1h = oi_z_by_window["1h"].get(s)
+        oi_z_4h = oi_z_by_window["4h"].get(s)
+        oi_avg = sum(oi_zs_present) / len(oi_zs_present)
+
+        price_z = price_z_map.get(s)
+        funding_z = funding_z_map.get(s)
+        volume_z = volume_z_map.get(s)
+        basis_z = basis_z_map.get(s)
+
+        if price_z is None or funding_z is None or volume_z is None:
+            continue
+
+        components = {
+            "oi": oi_avg,
+            "price": price_z,
+            "funding": funding_z,
+            "volume": volume_z,
+        }
+        if basis_z is not None:
+            components["basis"] = basis_z
+
+        present_w = {k: w[k] for k in components}
+        present_w = _normalize_weights(present_w)
+        composite = sum(components[k] * present_w[k] for k in components)
+
         out.append({
             "symbol": s,
-            "oi_z": oi_z[i],
-            "price_z": price_z[i],
-            "funding_z": funding_z[i],
+            "oi_z_30m": oi_z_30m,
+            "oi_z_1h": oi_z_1h,
+            "oi_z_4h": oi_z_4h,
+            "oi_z_avg": oi_avg,
+            "price_z": price_z,
+            "funding_z": funding_z,
+            "volume_z": volume_z,
+            "basis_z": basis_z,
             "composite": composite,
         })
     return out

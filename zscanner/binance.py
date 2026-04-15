@@ -4,6 +4,7 @@ import asyncio
 import aiohttp
 
 BASE = "https://fapi.binance.com"
+SPOT_BASE = "https://api.binance.com"
 
 PERIOD_TO_MINUTES = {
     "5m": 5, "15m": 15, "30m": 30, "1h": 60,
@@ -25,9 +26,9 @@ class BinanceFutures:
         if self._session:
             await self._session.close()
 
-    async def _get(self, path: str, params: dict | None = None):
+    async def _get(self, path: str, params: dict | None = None, base: str = BASE):
         assert self._session is not None
-        url = f"{BASE}{path}"
+        url = f"{base}{path}"
         for attempt in range(2):
             try:
                 async with self._sem:
@@ -90,3 +91,21 @@ class BinanceFutures:
     async def ticker_24h(self, symbol: str | None = None) -> dict | list | None:
         params = {"symbol": symbol} if symbol else None
         return await self._get("/fapi/v1/ticker/24hr", params)
+
+    async def futures_price(self, symbol: str) -> float | None:
+        data = await self._get("/fapi/v1/ticker/price", {"symbol": symbol})
+        if not isinstance(data, dict):
+            return None
+        try:
+            return float(data["price"])
+        except (KeyError, ValueError, TypeError):
+            return None
+
+    async def spot_price(self, symbol: str) -> float | None:
+        data = await self._get("/api/v3/ticker/price", {"symbol": symbol}, base=SPOT_BASE)
+        if not isinstance(data, dict):
+            return None
+        try:
+            return float(data["price"])
+        except (KeyError, ValueError, TypeError):
+            return None
